@@ -16,12 +16,13 @@
  */
 package org.scalatestplus.junit
 
-import org.scalatest.{Args, ConfigMap, DynaTags, Stopper, Suite, Tracker, Filter}
+import org.scalatest.{Args, ConfigMap, DynaTags, Filter, Stopper, Suite, Tracker}
 import org.junit.runner.notification.RunNotifier
 import org.junit.runner.notification.Failure
 import org.junit.runner.Description
-import org.junit.runner.manipulation.{Filter => TestFilter, Filterable, NoTestsRemainException}
+import org.junit.runner.manipulation.{Filterable, NoTestsRemainException, Filter => TestFilter}
 
+import java.util.concurrent.ConcurrentHashMap
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 
@@ -32,6 +33,7 @@ import scala.collection.mutable
  stupid Description displayName. We probably need to add optional test name and
  suite class name to Report, just to satisfy JUnit integration.
 */
+
 /**
  * A JUnit <code>Runner</code> that knows how to run any ScalaTest <code>Suite</code>.
  * This enables you to provide a JUnit <code>RunWith</code> annotation on any
@@ -44,7 +46,7 @@ import scala.collection.mutable
  *
  * @RunWith(classOf[JUnitRunner])
  * class MySuite extends FunSuite {
- *   // ...
+ * // ...
  * }
  * </pre>
  *
@@ -52,9 +54,7 @@ import scala.collection.mutable
  * This <code>RunWith</code> annotation will enable the <code>MySuite</code> class
  * to be run by JUnit 4.
  * </p>
- *
  * @param suiteClass suite class to be run
- *
  * @author Bill Venners
  * @author Daniel Watson
  * @author Jon-Anders Teigen
@@ -74,7 +74,7 @@ final class JUnitRunner(suiteClass: java.lang.Class[_ <: Suite]) extends org.jun
    */
   val getDescription = createDescription(suiteToRun)
 
-  private val excludedTests: mutable.Set[String] = mutable.Set()
+  private val excludedTests: mutable.Set[String] = ConcurrentHashMap.newKeySet[String]().asScala
 
   private def createDescription(suite: Suite): Description = {
     val description = Description.createSuiteDescription(suite.getClass)
@@ -97,17 +97,17 @@ final class JUnitRunner(suiteClass: java.lang.Class[_ <: Suite]) extends org.jun
    * method as <code>notifier</code>.
    *
    * @param notifier the JUnit <code>RunNotifier</code> to which to report the results of executing
-   * this suite of tests
+   *                 this suite of tests
    */
   def run(notifier: RunNotifier): Unit = {
     try {
       val includedTests: Set[String] = suiteToRun.testNames.diff(excludedTests)
       val testTags: Map[String, Map[String, Set[String]]] = Map(
         suiteToRun.suiteId ->
-          includedTests.map(test => test -> Set("INCLUDE")).toMap
+          includedTests.map(test => test -> Set("org.scalatest.Selected")).toMap
       )
       val filter = Filter(
-        tagsToInclude = Some(Set("INCLUDE")),
+        tagsToInclude = Some(Set("org.scalatest.Selected")),
         dynaTags = DynaTags(suiteTags = Map.empty, testTags = testTags)
       )
       // TODO: What should this Tracker be?
@@ -133,7 +133,7 @@ final class JUnitRunner(suiteClass: java.lang.Class[_ <: Suite]) extends org.jun
    * Returns the number of tests that are expected to run when this ScalaTest <code>Suite</code>
    * is run.
    *
-   *  @return the expected number of tests that will run when this suite is run
+   * @return the expected number of tests that will run when this suite is run
    */
   override def testCount(): Int = suiteToRun.expectedTestCount(Filter())
 
